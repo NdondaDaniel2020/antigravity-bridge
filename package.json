@@ -1,0 +1,113 @@
+{
+  "name": "antigravity-bridge",
+  "displayName": "Antigravity Bridge",
+  "description": "Bridge and synchronize AI chat conversations between Antigravity IDE, Antigravity 2.0, and agy CLI.",
+  "version": "0.1.0",
+  "publisher": "NdondaDaniel2020",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/NdondaDaniel2020/antigravity-bridge.git"
+  },
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Utilities"
+  ],
+  "keywords": [
+    "antigravity",
+    "bridge",
+    "sync",
+    "chat",
+    "agy",
+    "ai-agent",
+    "conversations"
+  ],
+  "activationEvents": [
+    "onCommand:antigravityBridge.sendToAntigravity2",
+    "onCommand:antigravityBridge.sendToCli",
+    "onCommand:antigravityBridge.importFromAntigravity2",
+    "onCommand:antigravityBridge.importFromCli",
+    "onCommand:antigravityBridge.openInAntigravity2",
+    "onCommand:antigravityBridge.openInAgyTerminal"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "antigravityBridge.sendToAntigravity2",
+        "title": "Antigravity Bridge: Send Chat to Antigravity 2.0",
+        "category": "Antigravity"
+      },
+      {
+        "command": "antigravityBridge.sendToCli",
+        "title": "Antigravity Bridge: Send Chat to CLI",
+        "category": "Antigravity"
+      },
+      {
+        "command": "antigravityBridge.importFromAntigravity2",
+        "title": "Antigravity Bridge: Import Chat from Antigravity 2.0",
+        "category": "Antigravity"
+      },
+      {
+        "command": "antigravityBridge.importFromCli",
+        "title": "Antigravity Bridge: Import Chat from CLI",
+        "category": "Antigravity"
+      },
+      {
+        "command": "antigravityBridge.openInAntigravity2",
+        "title": "Antigravity Bridge: Open in Antigravity 2.0",
+        "category": "Antigravity"
+      },
+      {
+        "command": "antigravityBridge.openInAgyTerminal",
+        "title": "Antigravity Bridge: Open in agy Terminal",
+        "category": "Antigravity"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "antigravityBridge.sendToAntigravity2",
+          "when": "true"
+        },
+        {
+          "command": "antigravityBridge.sendToCli",
+          "when": "true"
+        },
+        {
+          "command": "antigravityBridge.importFromAntigravity2",
+          "when": "true"
+        },
+        {
+          "command": "antigravityBridge.importFromCli",
+          "when": "true"
+        },
+        {
+          "command": "antigravityBridge.openInAntigravity2",
+          "when": "true"
+        },
+        {
+          "command": "antigravityBridge.openInAgyTerminal",
+          "when": "true"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.js --production",
+    "watch": "node esbuild.js --watch",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.3.3"
+  },
+  "icon": "icon.png"
+}
