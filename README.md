@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/NdondaDaniel2020/antigravity-bridge/main/icon.png" width="128" height="128" alt="Antigravity Bridge Logo" />
+<img src="https://raw.githubusercontent.com/NdondaDaniel2020/antigravity-bridge/main/assets/icon.png" width="128" height="128" alt="Antigravity Bridge Logo" />
 
 # Antigravity Bridge
 
