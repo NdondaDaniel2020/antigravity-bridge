@@ -2,7 +2,7 @@
   "name": "antigravity-bridge",
   "displayName": "Antigravity Platform Bridge: IDE ↔ CLI ↔ 2.0",
   "description": "Bridge and synchronize AI chat conversations between Antigravity IDE, Antigravity 2.0, and agy CLI.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "NdondaDaniel2020",
   "license": "MIT",
   "repository": {
