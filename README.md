@@ -33,12 +33,12 @@ Pressione `Ctrl+Shift+P` (ou `Cmd+Shift+P` no macOS) e escreva:
 
 | Comando | Descrição |
 |---------|-----------|
-| `Antigravity Bridge: Send Chat to Antigravity 2.0` | Exporta o chat atual do IDE para o Antigravity 2.0 |
-| `Antigravity Bridge: Send Chat to CLI` | Exporta o chat para `~/.gemini/` para retomar via `agy` |
-| `Antigravity Bridge: Import Chat from Antigravity 2.0` | Importa conversas do desktop app para o IDE |
-| `Antigravity Bridge: Import Chat from CLI` | Importa conversas criadas no terminal para o IDE |
-| `Antigravity Bridge: Open in Antigravity 2.0` | Sincroniza e abre o chat no desktop app |
-| `Antigravity Bridge: Open in agy Terminal` | Sincroniza e abre terminal com `agy --resume <session-id>` |
+| `Antigravity: Send Chat to Antigravity 2.0` | Exporta o chat atual do IDE para o Antigravity 2.0 |
+| `Antigravity: Send Chat to CLI` | Exporta o chat para `~/.gemini/` para retomar via `agy` |
+| `Antigravity: Import Chat from Antigravity 2.0` | Importa conversas do desktop app para o IDE |
+| `Antigravity: Import Chat from CLI` | Importa conversas criadas no terminal para o IDE |
+| `Antigravity: Open in Antigravity 2.0` | Sincroniza e abre o chat no desktop app |
+| `Antigravity: Open in agy Terminal` | Sincroniza e abre terminal com `agy --resume <session-id>` |
 
 ---
 
