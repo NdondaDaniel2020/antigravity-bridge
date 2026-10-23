@@ -1,59 +1,70 @@
-# Antigravity Bridge 🌉
+<div align="center">
 
-**Antigravity Bridge** é uma extensão projetada para sincronizar, transferir e retomar conversas e histórico de IA entre os três ambientes do ecossistema Google Antigravity:
+<img src="https://raw.githubusercontent.com/NdondaDaniel2020/antigravity-bridge/main/assets/icon.png" width="128" height="128" alt="Antigravity Platform Bridge Logo" />
+
+# Antigravity Platform Bridge: IDE ↔ CLI ↔ 2.0
+
+**Sincronize e transfira conversas de IA entre os três ambientes do ecossistema Google Antigravity com 1 clique.**
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)](#)
+
+</div>
+
+---
+
+## ⚡ Visão Geral
+
+Trabalhas entre terminais, o desktop app e o editor ao mesmo tempo?
+
+**Antigravity Platform Bridge** é a ponte oficial entre os três ambientes do ecossistema Antigravity:
 
 - **Antigravity IDE** (VS Code Edition)
 - **Antigravity 2.0** (Desktop Electron App)
 - **`agy` CLI** (Command Line Interface)
 
+Sincroniza histórico de chats, transcrições JSONL e artefatos de forma atómica, sem perder contexto entre plataformas.
+
 ---
 
 ## 🚀 Comandos Disponíveis
 
-Pressione `Ctrl+Shift+P` (ou `Cmd+Shift+P` no macOS) para abrir a Command Palette e digite:
+Pressione `Ctrl+Shift+P` (ou `Cmd+Shift+P` no macOS) e escreva:
 
-1. **`Antigravity Bridge: Send Chat to Antigravity 2.0`**
-   - Exporta o chat atual do IDE para o diretório e catálogo do Antigravity 2.0, preservando turnos, transcrições e artefatos.
-
-2. **`Antigravity Bridge: Send Chat to CLI`**
-   - Exporta o chat atual para `~/.gemini/sessions.json` e `~/.gemini/brain/`, permitindo retomá-lo instantaneamente via terminal com o `agy`.
-
-3. **`Antigravity Bridge: Import Chat from Antigravity 2.0`**
-   - Abre uma lista das conversas existentes no Antigravity 2.0 para o projeto atual e a importa para o SQLite interno do IDE (`agent-host.db` e `session.db`).
-
-4. **`Antigravity Bridge: Import Chat from CLI`**
-   - Abre uma lista de conversas criadas no terminal e importa para o Antigravity IDE com associação ao projeto.
-
-5. **`Antigravity Bridge: Open in Antigravity 2.0`**
-   - Sincroniza o chat ativo e inicializa/foca automaticamente o aplicativo desktop do Antigravity 2.0 no projeto.
-
-6. **`Antigravity Bridge: Open in agy Terminal`**
-   - Sincroniza o chat ativo e abre um **Terminal Integrado do VS Code** já rodando `agy --resume <session-id>` para continuidade imediata.
+| Comando | Descrição |
+|---------|-----------|
+| `Antigravity Bridge: Send Chat to Antigravity 2.0` | Exporta o chat atual do IDE para o Antigravity 2.0 |
+| `Antigravity Bridge: Send Chat to CLI` | Exporta o chat para `~/.gemini/` para retomar via `agy` |
+| `Antigravity Bridge: Import Chat from Antigravity 2.0` | Importa conversas do desktop app para o IDE |
+| `Antigravity Bridge: Import Chat from CLI` | Importa conversas criadas no terminal para o IDE |
+| `Antigravity Bridge: Open in Antigravity 2.0` | Sincroniza e abre o chat no desktop app |
+| `Antigravity Bridge: Open in agy Terminal` | Sincroniza e abre terminal com `agy --resume <session-id>` |
 
 ---
 
-## 🛠️ Como funciona por baixo do capô
+## 🛠️ Como funciona
 
-- **Engine SQLite Nativa:** Utiliza o módulo nativo `node:sqlite` do Node.js 22, interagindo de forma atômica com `agent-host.db` (`chats_v2`, `sessions_v2`, `session_chats`) e gerando o banco de sessão `session.db` individual.
-- **Transcrições JSONL Padronizadas:** Espelha e sincroniza as pastas `brain/<conversation-id>/.system_generated/logs/transcript.jsonl` entre os ambientes.
-- **QuickPick Inteligente:** Filtra e exibe o título da conversa, data de atualização e caminho do projeto para seleção rápida.
+- **Engine SQLite Nativa:** Usa o módulo `node:sqlite` do Node.js 22, operando atomicamente com `agent-host.db` e `session.db`.
+- **Transcrições JSONL:** Espelha a pasta `brain/<conversation-id>/.system_generated/logs/` entre ambientes.
+- **QuickPick Inteligente:** Filtra conversas por título, data e projeto para seleção rápida.
 
 ---
 
-## 📦 Como Empacotar e Instalar (.vsix)
+## 📦 Instalação via .vsix
 
 ```bash
-# Compilar a extensão
+# Compilar
 npm run build
 
-# Gerar o arquivo .vsix
+# Empacotar
 npx @vscode/vsce package --no-dependencies
 
-# Instalar no Antigravity IDE / VS Code
+# Instalar
 code --install-extension antigravity-bridge-0.1.0.vsix
 ```
 
 ---
 
 ## 📄 Licença
+
 MIT © [NdondaDaniel2020](https://github.com/NdondaDaniel2020)

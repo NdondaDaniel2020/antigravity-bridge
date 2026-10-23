@@ -1,6 +1,6 @@
 {
   "name": "antigravity-bridge",
-  "displayName": "Antigravity Bridge",
+  "displayName": "Antigravity Platform Bridge: IDE ↔ CLI ↔ 2.0",
   "description": "Bridge and synchronize AI chat conversations between Antigravity IDE, Antigravity 2.0, and agy CLI.",
   "version": "0.1.0",
   "publisher": "NdondaDaniel2020",
@@ -109,5 +109,5 @@
     "esbuild": "^0.24.0",
     "typescript": "^5.3.3"
   },
-  "icon": "icon.png"
+  "icon": "assets/icon.png"
 }
