@@ -109,5 +109,5 @@
     "esbuild": "^0.24.0",
     "typescript": "^5.3.3"
   },
-  "icon": "assets/icon.png"
+  "icon": "icon.png"
 }
