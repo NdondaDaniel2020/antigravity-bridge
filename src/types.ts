@@ -10,6 +10,7 @@ export interface ChatSession {
   model?: string;
   turnCount?: number;
   source: ChatEnvironment;
+  projectId?: string; // Antigravity 2.0 project/workspace UUID
   rawPayload?: string;
 }
 

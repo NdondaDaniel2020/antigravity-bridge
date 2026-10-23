@@ -21,8 +21,8 @@ export class BridgePaths {
   }
 
   public static getAppBrainDir(): string {
-    // Antigravity 2.0 app brain directory
-    const dir = path.join(this.getGeminiDir(), 'antigravity-app', 'brain');
+    // Antigravity 2.0 app brain directory (~/.gemini/antigravity/brain)
+    const dir = path.join(this.getGeminiDir(), 'antigravity', 'brain');
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
