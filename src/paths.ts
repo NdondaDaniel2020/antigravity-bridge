@@ -37,6 +37,23 @@ export class BridgePaths {
     return dir;
   }
 
+  // --- CONVERSATION SQLITE DIRECTORIES (<id>.db) ---
+  public static getIdeConversationsDir(): string {
+    const dir = path.join(this.getGeminiDir(), 'antigravity-ide', 'conversations');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  }
+
+  public static getAppConversationsDir(): string {
+    const dir = path.join(this.getGeminiDir(), 'antigravity', 'conversations');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  }
+
   // --- IDE SQLITE PATHS ---
   public static getIdeAgentHostDbPath(): string {
     return path.join(this.getHomeDir(), '.config', 'Code', 'User', 'globalStorage', 'agent-host.db');
@@ -57,6 +74,10 @@ export class BridgePaths {
   // --- ANTIGRAVITY 2.0 PATHS ---
   public static getAntigravityConfigDir(): string {
     return path.join(this.getHomeDir(), '.config', 'Antigravity');
+  }
+
+  public static getAppConversationSummariesDbPath(): string {
+    return path.join(this.getGeminiDir(), 'antigravity', 'conversation_summaries.db');
   }
 
   public static getAppStorageJsonPath(): string {
