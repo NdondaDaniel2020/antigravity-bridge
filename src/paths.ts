@@ -21,7 +21,6 @@ export class BridgePaths {
   }
 
   public static getAppBrainDir(): string {
-    // Antigravity 2.0 app brain directory (~/.gemini/antigravity/brain)
     const dir = path.join(this.getGeminiDir(), 'antigravity', 'brain');
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -61,6 +60,11 @@ export class BridgePaths {
       fs.mkdirSync(dir, { recursive: true });
     }
     return dir;
+  }
+
+  // --- ANTIGRAVITY 2.0 PROTOBUF CACHE ---
+  public static getAppSummariesProtoPath(): string {
+    return path.join(this.getGeminiDir(), 'antigravity', 'agyhub_summaries_proto.pb');
   }
 
   // --- IDE SQLITE PATHS ---

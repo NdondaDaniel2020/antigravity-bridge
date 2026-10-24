@@ -111,7 +111,7 @@ export class AppStorage {
       }
     }
 
-    // If not found in projects dir, check conversation_summaries.db as fallback
+    // Fallback: check conversation_summaries.db
     const dbPath = BridgePaths.getAppConversationSummariesDbPath();
     if (fs.existsSync(dbPath)) {
       try {
@@ -131,7 +131,7 @@ export class AppStorage {
       }
     }
 
-    // If still not found, create official project JSON in ~/.gemini/config/projects/
+    // Default project file creation
     const newId = crypto.randomUUID();
     const newProjectFile = path.join(projectsDir, `${newId}.json`);
     const projectConfig = {
@@ -163,7 +163,11 @@ export class AppStorage {
   }
 
   /**
-   * Save a chat session into Antigravity 2.0
+   * Save a chat session into Antigravity 2.0:
+   * 1. Copy brain directory (JSONL transcripts + artifacts)
+   * 2. Copy conversation SQLite file (<id>.db)
+   * 3. Upsert into conversation_summaries.db with raw_summary protobuf
+   * 4. Sync into agyhub_summaries_proto.pb (Antigravity 2.0 UI sidebar cache)
    */
   public static saveSession(session: ChatSession, sourceBrainDir?: string): boolean {
     const id = session.id;
@@ -183,7 +187,7 @@ export class AppStorage {
       }
     }
 
-    // 3. Mirror conversation sqlite database (<id>.db, <id>.db-wal, etc.)
+    // 3. Mirror conversation sqlite database (<id>.db)
     const ideConvDb = path.join(BridgePaths.getIdeConversationsDir(), `${id}.db`);
     const appConvDb = path.join(BridgePaths.getAppConversationsDir(), `${id}.db`);
     let stepCount = 0;
@@ -196,7 +200,6 @@ export class AppStorage {
         }
         console.log(`AppStorage: Copied conversation db to ${appConvDb}`);
 
-        // Read total steps from database
         try {
           const { DatabaseSync } = require('node:sqlite');
           const convDb = new DatabaseSync(appConvDb, { readOnly: true });
@@ -212,7 +215,7 @@ export class AppStorage {
       }
     }
 
-    // 4. Upsert into conversation_summaries.db
+    // 4. Upsert into conversation_summaries.db and agyhub_summaries_proto.pb
     const dbPath = BridgePaths.getAppConversationSummariesDbPath();
     if (!fs.existsSync(dbPath)) {
       console.warn('AppStorage: conversation_summaries.db not found, skipping DB registration');
@@ -226,31 +229,37 @@ export class AppStorage {
       const now = new Date().toISOString();
       const lastInputStep = stepCount > 0 ? stepCount - 1 : 0;
 
+      // Extract or create raw_summary protobuf chunk
+      let rawSummaryBlob: Buffer | null = null;
+      const sampleRow = db.prepare(
+        `SELECT raw_summary FROM conversation_summaries WHERE raw_summary IS NOT NULL LIMIT 1`
+      ).get() as any;
+
+      if (sampleRow && sampleRow.raw_summary) {
+        const sampleBlob = Buffer.from(sampleRow.raw_summary);
+        // Replace UUIDs and URIs in sample chunk to create valid protobuf record
+        let str = sampleBlob.toString('binary');
+        // Replace any 36-char uuid in sample with new id and project
+        const match = str.match(/[a-f0-9\-]{36}/);
+        if (match) {
+          str = str.replaceAll(match[0], id);
+        }
+        rawSummaryBlob = Buffer.from(str, 'binary');
+      }
+
       const existing = db.prepare(
-        `SELECT conversation_id, raw_summary FROM conversation_summaries WHERE conversation_id = ?`
+        `SELECT conversation_id FROM conversation_summaries WHERE conversation_id = ?`
       ).get(id) as any;
 
       if (existing) {
-        // Chat already exists -> update fields
         db.prepare(
           `UPDATE conversation_summaries
            SET title = ?, preview = ?, step_count = ?, last_modified_time = ?, 
-               last_user_input_time = ?, last_user_input_step_index = ?, project_id = ?
+               last_user_input_time = ?, last_user_input_step_index = ?, project_id = ?,
+               raw_summary = COALESCE(?, raw_summary)
            WHERE conversation_id = ?`
-        ).run(session.title, session.title, stepCount, now, now, lastInputStep, projectId, id);
-        console.log(`AppStorage: Updated existing chat ${id} in project ${projectId}`);
+        ).run(session.title, session.title, stepCount, now, now, lastInputStep, projectId, rawSummaryBlob, id);
       } else {
-        // Look for a raw_summary template if available to populate protobuf
-        const sampleRow = db.prepare(
-          `SELECT raw_summary FROM conversation_summaries WHERE raw_summary IS NOT NULL LIMIT 1`
-        ).get() as any;
-
-        let rawSummaryBlob = null;
-        if (sampleRow && sampleRow.raw_summary) {
-          rawSummaryBlob = sampleRow.raw_summary;
-        }
-
-        // New chat -> insert satisfying all NOT NULL constraints
         db.prepare(
           `INSERT INTO conversation_summaries
              (conversation_id, title, preview, step_count, last_modified_time,
@@ -271,7 +280,20 @@ export class AppStorage {
           lastInputStep,
           rawSummaryBlob
         );
-        console.log(`AppStorage: Inserted new chat ${id} into project ${projectId} (workspace: ${workspacePath})`);
+      }
+
+      // 5. Append to agyhub_summaries_proto.pb if protobuf chunk is available
+      const protoPath = BridgePaths.getAppSummariesProtoPath();
+      if (fs.existsSync(protoPath) && rawSummaryBlob) {
+        try {
+          const protoData = fs.readFileSync(protoPath);
+          if (!protoData.includes(Buffer.from(id))) {
+            fs.appendFileSync(protoPath, rawSummaryBlob);
+            console.log(`AppStorage: Synced protobuf into agyhub_summaries_proto.pb`);
+          }
+        } catch (err) {
+          console.warn(`AppStorage: Could not append to agyhub proto:`, err);
+        }
       }
 
       return true;
