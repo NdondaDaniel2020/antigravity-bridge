@@ -3,8 +3,9 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { BridgePaths } from '../paths';
 import { ChatSession } from '../types';
+import { safeSyncProtobuf } from './protobuf-helper';
 
-/** Convert a local path to a file:// URI (as used by workspace_uris) */
+/** Convert a local path to a file:// URI */
 function pathToUri(workspacePath: string): string {
   if (workspacePath.startsWith('file://')) {
     return workspacePath;
@@ -15,7 +16,6 @@ function pathToUri(workspacePath: string): string {
 export class AppStorage {
   /**
    * List all chats known to Antigravity 2.0
-   * Reads from conversation_summaries.db
    */
   public static listSessions(workspaceFilter?: string): ChatSession[] {
     const dbPath = BridgePaths.getAppConversationSummariesDbPath();
@@ -70,8 +70,8 @@ export class AppStorage {
   }
 
   /**
-   * Resolve the project_id for a given workspace path.
-   * Scans ~/.gemini/config/projects/*.json where Antigravity 2.0 projects are officially defined!
+   * Resolve the official project_id for a given workspace path.
+   * Matches against ~/.gemini/config/projects/<id>.json
    */
   public static resolveProjectId(workspacePath: string): string {
     const projectsDir = BridgePaths.getGeminiProjectsDir();
@@ -87,19 +87,19 @@ export class AppStorage {
             const content = fs.readFileSync(path.join(projectsDir, file), 'utf8');
             const data = JSON.parse(content);
 
-            // 1. Check matching folderUri in resources
+            // 1. Match folderUri in projectResources
             const resources = data.projectResources?.resources || [];
             for (const r of resources) {
               const uri = r.gitFolder?.folderUri || r.localFolder?.folderUri;
               if (uri && (uri === targetUri || targetUri.endsWith(uri.replace('file://', '')) || uri.endsWith(workspacePath))) {
-                console.log(`AppStorage: Reusing existing project JSON=${file} (id=${data.id}) for workspace=${workspacePath}`);
+                console.log(`AppStorage: Reusing official project JSON=${file} (id=${data.id}) for workspace=${workspacePath}`);
                 return data.id;
               }
             }
 
-            // 2. Check matching project name
+            // 2. Match project name
             if (data.name && data.name.toLowerCase() === projectName.toLowerCase()) {
-              console.log(`AppStorage: Reusing existing project by name=${data.name} (id=${data.id})`);
+              console.log(`AppStorage: Reusing official project by name=${data.name} (id=${data.id})`);
               return data.id;
             }
           } catch {
@@ -131,7 +131,7 @@ export class AppStorage {
       }
     }
 
-    // Default project file creation
+    // Create official project JSON in ~/.gemini/config/projects/
     const newId = crypto.randomUUID();
     const newProjectFile = path.join(projectsDir, `${newId}.json`);
     const projectConfig = {
@@ -166,14 +166,14 @@ export class AppStorage {
    * Save a chat session into Antigravity 2.0:
    * 1. Copy brain directory (JSONL transcripts + artifacts)
    * 2. Copy conversation SQLite file (<id>.db)
-   * 3. Upsert into conversation_summaries.db with raw_summary protobuf
-   * 4. Sync into agyhub_summaries_proto.pb (Antigravity 2.0 UI sidebar cache)
+   * 3. Upsert into conversation_summaries.db satisfying all NOT NULL constraints
+   * 4. Safely sync into agyhub_summaries_proto.pb with verified Varint encoding
    */
   public static saveSession(session: ChatSession, sourceBrainDir?: string): boolean {
     const id = session.id;
     const workspacePath = session.workspacePath || '';
 
-    // 1. Resolve official project_id: matches ~/.gemini/config/projects/*.json
+    // 1. Resolve official project_id
     const projectId = AppStorage.resolveProjectId(workspacePath);
 
     // 2. Mirror brain directory into ~/.gemini/antigravity/brain/<id>/
@@ -215,7 +215,7 @@ export class AppStorage {
       }
     }
 
-    // 4. Upsert into conversation_summaries.db and agyhub_summaries_proto.pb
+    // 4. Upsert into conversation_summaries.db
     const dbPath = BridgePaths.getAppConversationSummariesDbPath();
     if (!fs.existsSync(dbPath)) {
       console.warn('AppStorage: conversation_summaries.db not found, skipping DB registration');
@@ -229,24 +229,6 @@ export class AppStorage {
       const now = new Date().toISOString();
       const lastInputStep = stepCount > 0 ? stepCount - 1 : 0;
 
-      // Extract or create raw_summary protobuf chunk
-      let rawSummaryBlob: Buffer | null = null;
-      const sampleRow = db.prepare(
-        `SELECT raw_summary FROM conversation_summaries WHERE raw_summary IS NOT NULL LIMIT 1`
-      ).get() as any;
-
-      if (sampleRow && sampleRow.raw_summary) {
-        const sampleBlob = Buffer.from(sampleRow.raw_summary);
-        // Replace UUIDs and URIs in sample chunk to create valid protobuf record
-        let str = sampleBlob.toString('binary');
-        // Replace any 36-char uuid in sample with new id and project
-        const match = str.match(/[a-f0-9\-]{36}/);
-        if (match) {
-          str = str.replaceAll(match[0], id);
-        }
-        rawSummaryBlob = Buffer.from(str, 'binary');
-      }
-
       const existing = db.prepare(
         `SELECT conversation_id FROM conversation_summaries WHERE conversation_id = ?`
       ).get(id) as any;
@@ -255,10 +237,9 @@ export class AppStorage {
         db.prepare(
           `UPDATE conversation_summaries
            SET title = ?, preview = ?, step_count = ?, last_modified_time = ?, 
-               last_user_input_time = ?, last_user_input_step_index = ?, project_id = ?,
-               raw_summary = COALESCE(?, raw_summary)
+               last_user_input_time = ?, last_user_input_step_index = ?, project_id = ?
            WHERE conversation_id = ?`
-        ).run(session.title, session.title, stepCount, now, now, lastInputStep, projectId, rawSummaryBlob, id);
+        ).run(session.title, session.title, stepCount, now, now, lastInputStep, projectId, id);
       } else {
         db.prepare(
           `INSERT INTO conversation_summaries
@@ -266,8 +247,8 @@ export class AppStorage {
               workspace_uris, status, source, project_id, agent_name,
               parent_conversation_id, nesting_depth, battle_id, winning_conversation_id,
               not_fully_idle, killed, last_user_input_time, last_user_input_step_index,
-              app_data_dir, group_id, raw_summary)
-           VALUES (?, ?, ?, ?, ?, ?, 'CASCADE_RUN_STATUS_IDLE', '', ?, '', '', 0, '', '', 0, 0, ?, ?, 'antigravity', '', ?)`
+              app_data_dir, group_id)
+           VALUES (?, ?, ?, ?, ?, ?, 'CASCADE_RUN_STATUS_IDLE', '', ?, '', '', 0, '', '', 0, 0, ?, ?, 'antigravity', '')`
         ).run(
           id,
           session.title,
@@ -277,24 +258,13 @@ export class AppStorage {
           JSON.stringify([workspaceUri]),
           projectId,
           now,
-          lastInputStep,
-          rawSummaryBlob
+          lastInputStep
         );
       }
 
-      // 5. Append to agyhub_summaries_proto.pb if protobuf chunk is available
+      // 5. Safely sync into agyhub_summaries_proto.pb using validated Varint encoder
       const protoPath = BridgePaths.getAppSummariesProtoPath();
-      if (fs.existsSync(protoPath) && rawSummaryBlob) {
-        try {
-          const protoData = fs.readFileSync(protoPath);
-          if (!protoData.includes(Buffer.from(id))) {
-            fs.appendFileSync(protoPath, rawSummaryBlob);
-            console.log(`AppStorage: Synced protobuf into agyhub_summaries_proto.pb`);
-          }
-        } catch (err) {
-          console.warn(`AppStorage: Could not append to agyhub proto:`, err);
-        }
-      }
+      safeSyncProtobuf(protoPath, id, projectId, workspaceUri, session.title);
 
       return true;
     } catch (err) {
