@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/NdondaDaniel2020/antigravity-bridge/main/assets/icon.png" width="128" height="128" alt="Antigravity Platform Bridge Logo" />
+<img src="https://raw.githubusercontent.com/NdondaDaniel2020/antigravity-platform-bridge/main/assets/icon.png" width="128" height="128" alt="Antigravity Platform Bridge Logo" />
 
 # Antigravity Platform Bridge: IDE ↔ CLI ↔ 2.0
 
@@ -60,7 +60,7 @@ npm run build
 npx @vscode/vsce package --no-dependencies
 
 # Instalar
-code --install-extension antigravity-bridge-0.1.0.vsix
+code --install-extension antigravity-platform-bridge-0.1.1.vsix
 ```
 
 ---
