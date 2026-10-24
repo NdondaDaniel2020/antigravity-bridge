@@ -71,48 +71,105 @@ export class AppStorage {
 
   /**
    * Resolve the project_id for a given workspace path.
-   * - If a project_id already exists for that workspace in conversation_summaries.db -> reuse it
-   * - Otherwise -> generate a new UUID
+   * Scans ~/.gemini/config/projects/*.json where Antigravity 2.0 projects are officially defined!
    */
   public static resolveProjectId(workspacePath: string): string {
-    const dbPath = BridgePaths.getAppConversationSummariesDbPath();
-    if (!fs.existsSync(dbPath)) {
-      return crypto.randomUUID();
+    const projectsDir = BridgePaths.getGeminiProjectsDir();
+    const targetUri = pathToUri(workspacePath);
+    const projectName = path.basename(workspacePath) || 'Project';
+
+    if (fs.existsSync(projectsDir)) {
+      try {
+        const files = fs.readdirSync(projectsDir);
+        for (const file of files) {
+          if (!file.endsWith('.json') || file.includes('cli') || file.includes('outside')) continue;
+          try {
+            const content = fs.readFileSync(path.join(projectsDir, file), 'utf8');
+            const data = JSON.parse(content);
+
+            // 1. Check matching folderUri in resources
+            const resources = data.projectResources?.resources || [];
+            for (const r of resources) {
+              const uri = r.gitFolder?.folderUri || r.localFolder?.folderUri;
+              if (uri && (uri === targetUri || targetUri.endsWith(uri.replace('file://', '')) || uri.endsWith(workspacePath))) {
+                console.log(`AppStorage: Reusing existing project JSON=${file} (id=${data.id}) for workspace=${workspacePath}`);
+                return data.id;
+              }
+            }
+
+            // 2. Check matching project name
+            if (data.name && data.name.toLowerCase() === projectName.toLowerCase()) {
+              console.log(`AppStorage: Reusing existing project by name=${data.name} (id=${data.id})`);
+              return data.id;
+            }
+          } catch {
+            // ignore malformed JSON
+          }
+        }
+      } catch (err) {
+        console.warn('AppStorage: Could not read projects directory:', err);
+      }
     }
+
+    // If not found in projects dir, check conversation_summaries.db as fallback
+    const dbPath = BridgePaths.getAppConversationSummariesDbPath();
+    if (fs.existsSync(dbPath)) {
+      try {
+        const { DatabaseSync } = require('node:sqlite');
+        const db = new DatabaseSync(dbPath, { readOnly: true });
+        const row = db.prepare(
+          `SELECT project_id FROM conversation_summaries
+           WHERE workspace_uris LIKE ? AND project_id IS NOT NULL AND project_id != ''
+           LIMIT 1`
+        ).get(`%${workspacePath}%`) as any;
+
+        if (row?.project_id) {
+          return row.project_id;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // If still not found, create official project JSON in ~/.gemini/config/projects/
+    const newId = crypto.randomUUID();
+    const newProjectFile = path.join(projectsDir, `${newId}.json`);
+    const projectConfig = {
+      id: newId,
+      name: projectName,
+      projectResources: {
+        resources: [
+          {
+            gitFolder: {
+              folderUri: targetUri,
+              defaultBranch: 'main'
+            }
+          }
+        ]
+      },
+      settings: {},
+      updatedAt: new Date().toISOString(),
+      isWorkspaceOnly: false
+    };
 
     try {
-      const { DatabaseSync } = require('node:sqlite');
-      const db = new DatabaseSync(dbPath, { readOnly: true });
-      const row = db.prepare(
-        `SELECT project_id FROM conversation_summaries
-         WHERE workspace_uris LIKE ? AND project_id IS NOT NULL AND project_id != ''
-         LIMIT 1`
-      ).get(`%${workspacePath}%`) as any;
-
-      if (row?.project_id) {
-        console.log(`AppStorage: Reusing existing project_id=${row.project_id} for workspace=${workspacePath}`);
-        return row.project_id;
-      }
+      fs.writeFileSync(newProjectFile, JSON.stringify(projectConfig, null, 2), 'utf8');
+      console.log(`AppStorage: Created official Antigravity 2.0 project JSON: ${newProjectFile}`);
     } catch (err) {
-      console.warn('AppStorage: Could not resolve project_id:', err);
+      console.warn(`AppStorage: Failed to create project JSON ${newProjectFile}:`, err);
     }
 
-    const newId = crypto.randomUUID();
-    console.log(`AppStorage: No existing workspace found, creating new project_id=${newId}`);
     return newId;
   }
 
   /**
-   * Save a chat session into Antigravity 2.0:
-   * 1. Copy brain directory (JSONL transcripts + artifacts)
-   * 2. Copy conversation SQLite file (<id>.db) if exists
-   * 3. Upsert into conversation_summaries.db with all required NOT NULL constraints
+   * Save a chat session into Antigravity 2.0
    */
   public static saveSession(session: ChatSession, sourceBrainDir?: string): boolean {
     const id = session.id;
     const workspacePath = session.workspacePath || '';
 
-    // 1. Resolve project_id: reuse existing workspace if one exists
+    // 1. Resolve official project_id: matches ~/.gemini/config/projects/*.json
     const projectId = AppStorage.resolveProjectId(workspacePath);
 
     // 2. Mirror brain directory into ~/.gemini/antigravity/brain/<id>/
@@ -129,14 +186,27 @@ export class AppStorage {
     // 3. Mirror conversation sqlite database (<id>.db, <id>.db-wal, etc.)
     const ideConvDb = path.join(BridgePaths.getIdeConversationsDir(), `${id}.db`);
     const appConvDb = path.join(BridgePaths.getAppConversationsDir(), `${id}.db`);
+    let stepCount = 0;
+
     if (fs.existsSync(ideConvDb)) {
       try {
         fs.copyFileSync(ideConvDb, appConvDb);
-        // Copy wal if present
         if (fs.existsSync(`${ideConvDb}-wal`)) {
           fs.copyFileSync(`${ideConvDb}-wal`, `${appConvDb}-wal`);
         }
         console.log(`AppStorage: Copied conversation db to ${appConvDb}`);
+
+        // Read total steps from database
+        try {
+          const { DatabaseSync } = require('node:sqlite');
+          const convDb = new DatabaseSync(appConvDb, { readOnly: true });
+          const row = convDb.prepare('SELECT count(*) as count FROM steps').get() as any;
+          if (row && row.count) {
+            stepCount = row.count;
+          }
+        } catch {
+          // ignore
+        }
       } catch (err) {
         console.warn(`AppStorage: Could not copy conversation database:`, err);
       }
@@ -154,20 +224,32 @@ export class AppStorage {
       const db = new DatabaseSync(dbPath);
       const workspaceUri = pathToUri(workspacePath);
       const now = new Date().toISOString();
+      const lastInputStep = stepCount > 0 ? stepCount - 1 : 0;
 
       const existing = db.prepare(
-        `SELECT conversation_id FROM conversation_summaries WHERE conversation_id = ?`
+        `SELECT conversation_id, raw_summary FROM conversation_summaries WHERE conversation_id = ?`
       ).get(id) as any;
 
       if (existing) {
-        // Chat already exists -> update title, last_modified_time, last_user_input_time, project_id
+        // Chat already exists -> update fields
         db.prepare(
           `UPDATE conversation_summaries
-           SET title = ?, preview = ?, last_modified_time = ?, last_user_input_time = ?, project_id = ?
+           SET title = ?, preview = ?, step_count = ?, last_modified_time = ?, 
+               last_user_input_time = ?, last_user_input_step_index = ?, project_id = ?
            WHERE conversation_id = ?`
-        ).run(session.title, session.title, now, now, projectId, id);
+        ).run(session.title, session.title, stepCount, now, now, lastInputStep, projectId, id);
         console.log(`AppStorage: Updated existing chat ${id} in project ${projectId}`);
       } else {
+        // Look for a raw_summary template if available to populate protobuf
+        const sampleRow = db.prepare(
+          `SELECT raw_summary FROM conversation_summaries WHERE raw_summary IS NOT NULL LIMIT 1`
+        ).get() as any;
+
+        let rawSummaryBlob = null;
+        if (sampleRow && sampleRow.raw_summary) {
+          rawSummaryBlob = sampleRow.raw_summary;
+        }
+
         // New chat -> insert satisfying all NOT NULL constraints
         db.prepare(
           `INSERT INTO conversation_summaries
@@ -175,16 +257,19 @@ export class AppStorage {
               workspace_uris, status, source, project_id, agent_name,
               parent_conversation_id, nesting_depth, battle_id, winning_conversation_id,
               not_fully_idle, killed, last_user_input_time, last_user_input_step_index,
-              app_data_dir, group_id)
-           VALUES (?, ?, ?, 0, ?, ?, 'CASCADE_RUN_STATUS_IDLE', '', ?, '', '', 0, '', '', 0, 0, ?, 0, 'antigravity', '')`
+              app_data_dir, group_id, raw_summary)
+           VALUES (?, ?, ?, ?, ?, ?, 'CASCADE_RUN_STATUS_IDLE', '', ?, '', '', 0, '', '', 0, 0, ?, ?, 'antigravity', '', ?)`
         ).run(
           id,
           session.title,
           session.title,
+          stepCount,
           now,
           JSON.stringify([workspaceUri]),
           projectId,
-          now
+          now,
+          lastInputStep,
+          rawSummaryBlob
         );
         console.log(`AppStorage: Inserted new chat ${id} into project ${projectId} (workspace: ${workspacePath})`);
       }

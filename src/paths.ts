@@ -54,6 +54,15 @@ export class BridgePaths {
     return dir;
   }
 
+  // --- PROJECTS JSON DIRECTORY (~/.gemini/config/projects/) ---
+  public static getGeminiProjectsDir(): string {
+    const dir = path.join(this.getGeminiDir(), 'config', 'projects');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
+  }
+
   // --- IDE SQLITE PATHS ---
   public static getIdeAgentHostDbPath(): string {
     return path.join(this.getHomeDir(), '.config', 'Code', 'User', 'globalStorage', 'agent-host.db');
